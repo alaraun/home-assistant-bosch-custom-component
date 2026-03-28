@@ -1,0 +1,9 @@
+pytest-homeassistant-custom-component
+syrupy
+pytest-asyncio
+respx
+slixmpp
+pyaes
+click
+colorlog
+pyyaml

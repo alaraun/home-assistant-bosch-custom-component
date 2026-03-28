@@ -1,0 +1,26 @@
+# serializer version: 1
+# name: test_climate_setup
+  StateSnapshot({
+    'attributes': ReadOnlyDict({
+      'bosch_state': 'heat',
+      'current_temperature': 21.0,
+      'friendly_name': 'hc1',
+      'hvac_action': <HVACAction.HEATING: 'heating'>,
+      'hvac_modes': list([
+        'heat',
+        'off',
+      ]),
+      'max_temp': 30.0,
+      'min_temp': 5.0,
+      'setpoint': 20.0,
+      'supported_features': <ClimateEntityFeature: 1>,
+      'temperature': 20.0,
+    }),
+    'context': <ANY>,
+    'entity_id': 'climate.hc1',
+    'last_changed': <ANY>,
+    'last_reported': <ANY>,
+    'last_updated': <ANY>,
+    'state': 'heat',
+  })
+# ---

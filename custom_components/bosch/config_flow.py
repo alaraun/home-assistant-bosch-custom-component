@@ -16,10 +16,15 @@ from bosch_thermostat_client.exceptions import (
 from homeassistant import config_entries
 from homeassistant.core import callback
 
-from homeassistant.const import CONF_ACCESS_TOKEN, CONF_ADDRESS, CONF_PASSWORD
+from homeassistant.const import (
+    CONF_ACCESS_TOKEN,
+    CONF_ADDRESS,
+    CONF_PASSWORD,
+    CONF_VERIFY_SSL,
+)
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from . import create_notification_firmware
+from .gateway import create_notification_firmware
 from .const import (
     ACCESS_KEY,
     ACCESS_TOKEN,
@@ -51,6 +56,7 @@ class BoschFlowHandler(config_entries.ConfigFlow):
         self._password = None
         self._protocol = None
         self._device_type = None
+        self._verify_ssl = True
 
     async def async_step_user(self, user_input=None):
         """Handle flow initiated by user."""
@@ -98,6 +104,7 @@ class BoschFlowHandler(config_entries.ConfigFlow):
                         vol.Required(CONF_ADDRESS): str,
                         vol.Required(CONF_ACCESS_TOKEN): str,
                         vol.Optional(CONF_PASSWORD): str,
+                        vol.Optional(CONF_VERIFY_SSL, default=True): bool,
                     }
                 ),
                 errors=errors,
@@ -117,9 +124,10 @@ class BoschFlowHandler(config_entries.ConfigFlow):
             self._host = user_input[CONF_ADDRESS]
             self._access_token = user_input[CONF_ACCESS_TOKEN]
             self._password = user_input.get(CONF_PASSWORD)
+            self._verify_ssl = user_input.get(CONF_VERIFY_SSL, True)
             return await self.configure_gateway(
                 device_type=self._choose_type,
-                session=async_get_clientsession(self.hass, verify_ssl=False),
+                session=async_get_clientsession(self.hass, verify_ssl=self._verify_ssl),
                 session_type=self._protocol,
                 host=self._host,
                 access_token=self._access_token,
@@ -131,10 +139,13 @@ class BoschFlowHandler(config_entries.ConfigFlow):
             self._host = user_input[CONF_ADDRESS]
             self._access_token = user_input[CONF_ACCESS_TOKEN]
             self._password = user_input.get(CONF_PASSWORD)
+            self._verify_ssl = user_input.get(CONF_VERIFY_SSL, True)
             if "127.0.0.1" in user_input[CONF_ADDRESS]:
                 return await self.configure_gateway(
                     device_type=self._choose_type,
-                    session=async_get_clientsession(self.hass, verify_ssl=False),
+                    session=async_get_clientsession(
+                        self.hass, verify_ssl=self._verify_ssl
+                    ),
                     session_type=HTTP,
                     host=self._host,
                     access_token=self._access_token,
@@ -152,6 +163,25 @@ class BoschFlowHandler(config_entries.ConfigFlow):
         self, device_type, session_type, host, access_token, password=None, session=None
     ):
         try:
+            from bosch_thermostat_client.const.easycontrol import EASYCONTROL
+            from bosch_thermostat_client.const import XMPP
+            import ssl
+
+            ssl_context = None
+            if session_type == XMPP and device_type == EASYCONTROL:
+                def create_xmpp_ssl_context():
+                    from bosch_thermostat_client.connectors.easycontrol import (
+                        _CA_CERT_PATH,
+                    )
+
+                    context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+                    context.load_verify_locations(cafile=str(_CA_CERT_PATH))
+                    return context
+
+                ssl_context = await self.hass.async_add_executor_job(
+                    create_xmpp_ssl_context
+                )
+
             BoschGateway = gateway_chooser(device_type)
             device = BoschGateway(
                 session_type=session_type,
@@ -159,6 +189,7 @@ class BoschFlowHandler(config_entries.ConfigFlow):
                 access_token=access_token,
                 password=password,
                 session=session,
+                ssl_context=ssl_context,
             )
             try:
                 uuid = await device.check_connection()
@@ -184,6 +215,7 @@ class BoschFlowHandler(config_entries.ConfigFlow):
                     ACCESS_TOKEN: device.access_token,
                     CONF_DEVICE_TYPE: self._choose_type,
                     CONF_PROTOCOL: session_type,
+                    CONF_VERIFY_SSL: self._verify_ssl,
                 },
             )
 
@@ -212,6 +244,8 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
 
         new_stats_api = self.entry.options.get("new_stats_api", False)
         optimistic_mode = self.entry.options.get("optimistic_mode", False)
+        scan_interval = self.entry.options.get("scan_interval", 60)
+        concurrency = self.entry.options.get("concurrency", 3)
 
         return self.async_show_form(
             step_id="init",
@@ -219,6 +253,12 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 {
                     vol.Optional("new_stats_api", default=new_stats_api): bool,
                     vol.Optional("optimistic_mode", default=optimistic_mode): bool,
+                    vol.Optional("scan_interval", default=scan_interval): vol.All(
+                        vol.Coerce(int), vol.Range(min=30, max=3600)
+                    ),
+                    vol.Optional("concurrency", default=concurrency): vol.All(
+                        vol.Coerce(int), vol.Range(min=1, max=10)
+                    ),
                 }
             ),
         )

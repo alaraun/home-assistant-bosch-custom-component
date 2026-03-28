@@ -1,0 +1,19 @@
+# serializer version: 1
+# name: test_sensor_setup
+  StateSnapshot({
+    'attributes': ReadOnlyDict({
+      'friendly_name': 'Outdoor t1',
+      'path': '/system/sensors/temperatures/outdoor_t1',
+      'stateExtra': 12.5,
+      'unitOfMeasure': 'C',
+      'unit_of_measurement': <UnitOfTemperature.CELSIUS: '°C'>,
+      'value': 12.5,
+    }),
+    'context': <ANY>,
+    'entity_id': 'sensor.outdoor_t1',
+    'last_changed': <ANY>,
+    'last_reported': <ANY>,
+    'last_updated': <ANY>,
+    'state': '12.5',
+  })
+# ---
